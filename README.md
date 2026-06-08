@@ -78,15 +78,20 @@ If you are upgrading from the original `nano-banana-mcp` v1 server, your key mig
 
 ## 🚀 Installation & Client Integration
 
-### Method A: Run From Local Directory (Recommended for Development)
-Add this to your MCP settings file (e.g., Cursor, Claude Desktop, or Claude Code config):
+### Method A: Build & Run Locally (Recommended for Development)
+First, compile the Go binary inside the project directory:
+
+```bash
+go build -o nano-banana-mcpv2 main.go
+```
+
+Then add this to your MCP settings file (e.g., Cursor, Claude Desktop, or Claude Code config):
 
 ```json
 {
   "mcpServers": {
     "nano-banana-mcpv2": {
-      "command": "node",
-      "args": ["/Users/house/Documents/gitlab/nano-banana-mcpv2/dist/index.js"],
+      "command": "/Users/house/Documents/gitlab/nano-banana-mcpv2/nano-banana-mcpv2",
       "env": {
         "GEMINI_API_KEY": "your-gemini-api-key-here",
         "GEMINI_IMAGE_MODEL": "gemini-3.1-flash-image"
@@ -96,23 +101,46 @@ Add this to your MCP settings file (e.g., Cursor, Claude Desktop, or Claude Code
 }
 ```
 
-### Method B: Install Directly from GitHub
-You can install this package globally directly from your GitHub fork:
+### Method B: Download Pre-compiled Binary
+You can download the pre-compiled binary for your system (macOS ARM64/AMD64, Linux AMD64, or Windows) directly from the [GitHub Releases](https://github.com/notfixingit3/nano-banana-mcpv2/releases) page.
 
-```bash
-npm install -g github:notfixingit3/nano-banana-mcpv2#v0.1.0
-```
-
-Then configure your client to run it globally:
+Once downloaded, make it executable (`chmod +x nano-banana-mcpv2`) and add it to your path or reference it directly:
 
 ```json
 {
   "mcpServers": {
     "nano-banana-mcpv2": {
-      "command": "nano-banana-mcpv2",
+      "command": "/path/to/downloaded/nano-banana-mcpv2",
       "env": {
         "GEMINI_API_KEY": "your-gemini-api-key-here"
       }
+    }
+  }
+}
+```
+
+### Method C: Run via Docker
+Build the minimal Docker image:
+
+```bash
+docker build -t nano-banana-mcpv2 .
+```
+
+Then configure your MCP client to run the server inside the Docker container:
+
+```json
+{
+  "mcpServers": {
+    "nano-banana-mcpv2": {
+      "command": "docker",
+      "args": [
+        "run",
+        "-i",
+        "--rm",
+        "-e",
+        "GEMINI_API_KEY=your-gemini-api-key-here",
+        "nano-banana-mcpv2"
+      ]
     }
   }
 }
