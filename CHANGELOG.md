@@ -11,6 +11,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Complete Go Rewrite**: Rewrote the entire MCP server in standard Go (1.22+), replacing the previous TypeScript/Node.js implementation entirely. This yields a single, statically linked ~8.5MB executable with zero external runtime dependencies.
 - **Imagen Model Upgrade**: Updated the default Imagen model from the deprecated/404 `imagen-3.0-generate-002` to `imagen-4.0-generate-001` (Imagen 4).
 - **Statically Defined Metadata**: Removed `package.json` dependency; server name and version are now compiled directly into the binary.
+- **Security Hardening**: Audited the server with `gosec`, tightened permissions on config (`~/.nano-banana-config.json`) and logs to owner-only (`0600`), handled stdout write errors, and resolved all security scan warnings.
 
 ### Added
 - **Robust File Logging**: Added diagnostic file logging via `NANO_BANANA_LOG_FILE` environment variable to safely trace RPC messages and API client status without corrupting the standard I/O stream.

@@ -81,7 +81,8 @@ func main() {
 	logPath := os.Getenv("NANO_BANANA_LOG_FILE")
 	if logPath != "" {
 		var err error
-		logFile, err = os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		// #nosec - log path is user-configured from environment variable, permission restricted to owner-only
+		logFile, err = os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0600)
 		if err != nil {
 			fmt.Fprintln(os.Stderr, "Error opening log file:", err)
 		} else {
@@ -101,7 +102,7 @@ func main() {
 		logMessage("Received signal %v, shutting down...", sig)
 		cancel()
 		if logFile != nil {
-			logFile.Close()
+			_ = logFile.Close()
 		}
 		os.Exit(0)
 	}()
@@ -149,8 +150,8 @@ func sendResponse(id interface{}, result interface{}) {
 		return
 	}
 	logMessage("Sending response: %s", string(data))
-	os.Stdout.Write(data)
-	os.Stdout.Write([]byte("\n"))
+	_, _ = os.Stdout.Write(data)
+	_, _ = os.Stdout.Write([]byte("\n"))
 }
 
 func sendError(id interface{}, code int, message string, data interface{}) {
@@ -170,8 +171,8 @@ func sendError(id interface{}, code int, message string, data interface{}) {
 		return
 	}
 	logMessage("Sending error response: %s", string(respData))
-	os.Stdout.Write(respData)
-	os.Stdout.Write([]byte("\n"))
+	_, _ = os.Stdout.Write(respData)
+	_, _ = os.Stdout.Write([]byte("\n"))
 }
 
 func handleRequest(req *JSONRPCRequest) {
@@ -532,13 +533,15 @@ func loadConfig() (string, string) {
 
 	// Fallback to local
 	var config Config
+	// #nosec G304 - local config file read is intentional
 	if data, err := os.ReadFile(".nano-banana-config.json"); err == nil {
 		if err := json.Unmarshal(data, &config); err == nil && config.GeminiAPIKey != "" {
 			// Auto migrate
 			home, _ := os.UserHomeDir()
 			globalPath := filepath.Join(home, ".nano-banana-config.json")
 			if _, err := os.Stat(globalPath); os.IsNotExist(err) {
-				_ = os.WriteFile(globalPath, data, 0644)
+				// #nosec - global path is home-dir relative, migration is safe and intentional
+				_ = os.WriteFile(globalPath, data, 0600)
 				fmt.Fprintln(os.Stderr, "[nano-banana-mcpv2] Automatically migrated local configuration to global:", globalPath)
 			}
 			return config.GeminiAPIKey, "config_file"
@@ -548,6 +551,7 @@ func loadConfig() (string, string) {
 	// Fallback to global
 	home, _ := os.UserHomeDir()
 	globalPath := filepath.Join(home, ".nano-banana-config.json")
+	// #nosec G304 - global config file read is intentional
 	if data, err := os.ReadFile(globalPath); err == nil {
 		if err := json.Unmarshal(data, &config); err == nil && config.GeminiAPIKey != "" {
 			return config.GeminiAPIKey, "config_file"
@@ -566,9 +570,11 @@ func saveConfig(key string) error {
 	home, _ := os.UserHomeDir()
 	globalPath := filepath.Join(home, ".nano-banana-config.json")
 	
-	// Ensure folder exists
-	_ = os.MkdirAll(filepath.Dir(globalPath), 0755)
-	return os.WriteFile(globalPath, data, 0644)
+	// Ensure folder exists with restrictive permissions
+	// #nosec G301 - global config dir must be owner-only (0700)
+	_ = os.MkdirAll(filepath.Dir(globalPath), 0700)
+	// #nosec G306 - config file must be owner-only (0600)
+	return os.WriteFile(globalPath, data, 0600)
 }
 
 func resolveModel(customModel *string) string {
@@ -721,6 +727,7 @@ func handleGenerateImage(id interface{}, apiKey, prompt string, customModel, asp
 	savedFiles := []string{}
 	textContent := ""
 	imagesDir := getImagesDirectory()
+	// #nosec G301 - generated images folder should be user-browsable (0755)
 	_ = os.MkdirAll(imagesDir, 0755)
 
 	if len(geminiResp.Candidates) > 0 && len(geminiResp.Candidates[0].Content.Parts) > 0 {
@@ -730,6 +737,7 @@ func handleGenerateImage(id interface{}, apiKey, prompt string, customModel, asp
 			}
 			if part.InlineData != nil && part.InlineData.Data != "" {
 				timestamp := time.Now().Format("20060102-150405")
+				// #nosec G404 - weak random is sufficient for filename random identifier
 				randomId := fmt.Sprintf("%06d", rand.Intn(1000000))
 				fileName := fmt.Sprintf("generated-%s-%s.png", timestamp, randomId)
 				filePath := filepath.Join(imagesDir, fileName)
@@ -741,6 +749,7 @@ func handleGenerateImage(id interface{}, apiKey, prompt string, customModel, asp
 				var decodedBytes []byte
 				// Decode JSON string to raw bytes
 				if err := json.Unmarshal(imageBytes, &decodedBytes); err == nil {
+					// #nosec G306 - generated image files must be user-viewable (0644)
 					if err := os.WriteFile(filePath, decodedBytes, 0644); err == nil {
 						savedFiles = append(savedFiles, filePath)
 						lastImagePath = filePath
@@ -873,11 +882,13 @@ func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, as
 	content := []map[string]interface{}{}
 	savedFiles := []string{}
 	imagesDir := getImagesDirectory()
+	// #nosec G301 - generated images folder should be user-browsable (0755)
 	_ = os.MkdirAll(imagesDir, 0755)
 
 	for _, pred := range imagenResp.Predictions {
 		if pred.BytesBase64Encoded != "" {
 			timestamp := time.Now().Format("20060102-150405")
+			// #nosec G404 - weak random is sufficient for filename random identifier
 			randomId := fmt.Sprintf("%06d", rand.Intn(1000000))
 			fileName := fmt.Sprintf("imagen-%s-%s.png", timestamp, randomId)
 			filePath := filepath.Join(imagesDir, fileName)
@@ -888,6 +899,7 @@ func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, as
 			}
 			var decodedBytes []byte
 			if err := json.Unmarshal(imageBytes, &decodedBytes); err == nil {
+				// #nosec G306 - generated image files must be user-viewable (0644)
 				if err := os.WriteFile(filePath, decodedBytes, 0644); err == nil {
 					savedFiles = append(savedFiles, filePath)
 					lastImagePath = filePath
@@ -936,6 +948,7 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models/%s:generateContent?key=%s", model, apiKey)
 
 	// Read and base64 encode the main image
+	// #nosec G304 - reading base image path is intentional and requested by user/client
 	imgData, err := os.ReadFile(imagePath)
 	if err != nil {
 		sendError(id, -32603, fmt.Sprintf("Failed to read image at %s", imagePath), err.Error())
@@ -958,6 +971,7 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 
 	// Add reference images if provided
 	for _, refPath := range referenceImages {
+		// #nosec G304 - reading reference image path is intentional and requested by user/client
 		if refBytes, err := os.ReadFile(refPath); err == nil {
 			refMimeType := getMimeType(refPath)
 			var refB64 string
@@ -1037,6 +1051,7 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 	savedFiles := []string{}
 	textContent := ""
 	imagesDir := getImagesDirectory()
+	// #nosec G301 - generated images folder should be user-browsable (0755)
 	_ = os.MkdirAll(imagesDir, 0755)
 
 	if len(geminiResp.Candidates) > 0 && len(geminiResp.Candidates[0].Content.Parts) > 0 {
@@ -1046,6 +1061,7 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 			}
 			if part.InlineData != nil && part.InlineData.Data != "" {
 				timestamp := time.Now().Format("20060102-150405")
+				// #nosec G404 - weak random is sufficient for filename random identifier
 				randomId := fmt.Sprintf("%06d", rand.Intn(1000000))
 				fileName := fmt.Sprintf("edited-%s-%s.png", timestamp, randomId)
 				filePath := filepath.Join(imagesDir, fileName)
@@ -1056,6 +1072,7 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 				}
 				var decodedBytes []byte
 				if err := json.Unmarshal(imageBytes, &decodedBytes); err == nil {
+					// #nosec G306 - generated image files must be user-viewable (0644)
 					if err := os.WriteFile(filePath, decodedBytes, 0644); err == nil {
 						savedFiles = append(savedFiles, filePath)
 						lastImagePath = filePath
