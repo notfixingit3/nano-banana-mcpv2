@@ -470,7 +470,7 @@ class NanoBananaMCP {
           sourceInfo = "\n📍 Source: Environment variable (GEMINI_API_KEY)\n💡 This is the most secure configuration method.";
           break;
         case 'config_file':
-          sourceInfo = "\n📍 Source: Local configuration file (.nano-banana-config.json)\n💡 Consider using environment variables for better security.";
+          sourceInfo = "\n📍 Source: Configuration file (~/.nano-banana-config.json)\n💡 Consider using environment variables for better security.";
           break;
       }
     } else {
@@ -624,7 +624,8 @@ class NanoBananaMCP {
 
   private async saveConfig(): Promise<void> {
     if (this.config) {
-      const configPath = path.join(process.cwd(), '.nano-banana-config.json');
+      // Save globally in home directory so it's accessible across different folders
+      const configPath = path.join(os.homedir(), '.nano-banana-config.json');
       await fs.writeFile(configPath, JSON.stringify(this.config, null, 2));
     }
   }
@@ -643,19 +644,25 @@ class NanoBananaMCP {
       }
     }
     
-    // Fallback to config file
-    try {
-      const configPath = path.join(process.cwd(), '.nano-banana-config.json');
-      const configData = await fs.readFile(configPath, 'utf-8');
-      const parsedConfig = JSON.parse(configData);
-      
-      this.config = ConfigSchema.parse(parsedConfig);
-      this.genAI = new GoogleGenAI({ apiKey: this.config.geminiApiKey });
-      this.configSource = 'config_file';
-    } catch {
-      // Config file doesn't exist or is invalid, that's okay
-      this.configSource = 'not_configured';
+    // Fallback to local config first, then global config in home directory
+    const localConfigPath = path.join(process.cwd(), '.nano-banana-config.json');
+    const globalConfigPath = path.join(os.homedir(), '.nano-banana-config.json');
+    
+    for (const configPath of [localConfigPath, globalConfigPath]) {
+      try {
+        const configData = await fs.readFile(configPath, 'utf-8');
+        const parsedConfig = JSON.parse(configData);
+        
+        this.config = ConfigSchema.parse(parsedConfig);
+        this.genAI = new GoogleGenAI({ apiKey: this.config.geminiApiKey });
+        this.configSource = 'config_file';
+        return;
+      } catch {
+        // Config file doesn't exist or is invalid, try next one
+      }
     }
+    
+    this.configSource = 'not_configured';
   }
 
   public async run(): Promise<void> {

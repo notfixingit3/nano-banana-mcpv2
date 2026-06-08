@@ -2,6 +2,12 @@
   <img src="assets/logo.png" alt="Nano Banana MCP v2 Logo" width="300" />
 </p>
 
+<p align="center">
+  <a href="https://github.com/notfixingit3/nano-banana-mcpv2/actions/workflows/release.yml"><img src="https://github.com/notfixingit3/nano-banana-mcpv2/actions/workflows/release.yml/badge.svg" alt="Release Workflow Status" /></a>
+  <a href="https://github.com/notfixingit3/nano-banana-mcpv2/releases"><img src="https://img.shields.io/github/v/release/notfixingit3/nano-banana-mcpv2?include_prereleases" alt="Latest Release" /></a>
+  <a href="LICENSE"><img src="https://img.shields.io/github/license/notfixingit3/nano-banana-mcpv2" alt="License" /></a>
+</p>
+
 # Nano-Banana MCP Server v2 🍌
 
 An enhanced Model Context Protocol (MCP) server that provides AI image generation and editing capabilities using Google's Gemini Multimodal Image APIs (`gemini-3.1-flash-image` / `gemini-3-pro-image`).
