@@ -20,6 +20,16 @@ This is a **v2 fork** of the original `nano-banana-mcp` server, updated to suppo
 
 ---
 
+### 🎨 Sample Output (Imagen 4)
+
+Here is a preview image generated using the `generate_imagen` tool with the default `imagen-4.0-generate-001` model:
+
+<p align="center">
+  <img src="assets/sample_output.png" alt="Sample Imagen 4 Output" width="400" />
+</p>
+
+---
+
 ## ✨ Features
 
 - 🎨 **Generate Images**: Create new images from text descriptions.
@@ -83,6 +93,13 @@ First, compile the Go binary inside the project directory:
 
 ```bash
 go build -o nano-banana-mcpv2 main.go
+```
+
+To verify that your API key is configured correctly and image generation is functional over stdio, you can run the test script:
+
+```bash
+export GEMINI_API_KEY="your-api-key-here"
+./scripts/test_generation.sh
 ```
 
 Then add this to your MCP settings file (e.g., Cursor, Claude Desktop, or Claude Code config):
