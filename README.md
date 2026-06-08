@@ -62,6 +62,20 @@ If you are upgrading from the original `nano-banana-mcp` v1 server, your key mig
 
 ---
 
+## 🔑 Getting Your API Key & Google AI Studio Limits
+
+### How to Get Your API Key
+1. Go to [Google AI Studio](https://aistudio.google.com/).
+2. Click on **"Create API Key"** at the top left.
+3. Select an existing Google Cloud project or create a new one, and copy your API key.
+
+### Rate Limits & Pricing Plans (as of 2026)
+*   **Paid/Pay-As-You-Go Plan Required**: Native image generation and editing using the Gemini 3 image models (`gemini-3.1-flash-image` and `gemini-3-pro-image`) are premium capabilities. Google AI Studio generally requires a **Pay-As-You-Go** plan for image-based generation models; standard free tiers may restrict these capabilities.
+*   **Token Billing**: Image requests are billed on a pay-per-token basis, consuming approximately **1,290 tokens** per generated image.
+*   **Rate Limits**: Enforced at the project level. Exceeding your Requests Per Minute (RPM) or Tokens Per Minute (TPM) quotas will result in a `429: Resource Exhausted` error. You can monitor and adjust your limits in the Google AI Studio console settings.
+
+---
+
 ## 🚀 Installation & Client Integration
 
 ### Method A: Run From Local Directory (Recommended for Development)
