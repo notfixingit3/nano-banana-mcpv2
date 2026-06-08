@@ -3,15 +3,18 @@ package main
 import (
 	"bufio"
 	"bytes"
+	"context"
 	"encoding/json"
 	"fmt"
 	"io"
 	"math/rand"
 	"net/http"
 	"os"
+	"os/signal"
 	"path/filepath"
 	"runtime"
 	"strings"
+	"syscall"
 	"time"
 )
 
@@ -61,16 +64,56 @@ type InputSchema struct {
 var (
 	lastImagePath string
 	httpClient    = &http.Client{Timeout: 60 * time.Second}
+	logFile       *os.File
+	globalCtx     context.Context
 )
 
 func main() {
+	// Parse CLI flags first
+	if len(os.Args) > 1 && (os.Args[1] == "--setup" || os.Args[1] == "-setup") {
+		runSetupWizard()
+		return
+	}
+
 	rand.Seed(time.Now().UnixNano())
+
+	// Initialize log file if requested
+	logPath := os.Getenv("NANO_BANANA_LOG_FILE")
+	if logPath != "" {
+		var err error
+		logFile, err = os.OpenFile(logPath, os.O_CREATE|os.O_WRONLY|os.O_APPEND, 0644)
+		if err != nil {
+			fmt.Fprintln(os.Stderr, "Error opening log file:", err)
+		} else {
+			logMessage("Server started, logging enabled (version: %s)", ServerVersion)
+		}
+	}
+
+	// Set up global context and signal handling for graceful shutdown
+	var cancel context.CancelFunc
+	globalCtx, cancel = context.WithCancel(context.Background())
+	defer cancel()
+
+	sigs := make(chan os.Signal, 1)
+	signal.Notify(sigs, syscall.SIGINT, syscall.SIGTERM)
+	go func() {
+		sig := <-sigs
+		logMessage("Received signal %v, shutting down...", sig)
+		cancel()
+		if logFile != nil {
+			logFile.Close()
+		}
+		os.Exit(0)
+	}()
+
 	scanner := bufio.NewScanner(os.Stdin)
 
 	for scanner.Scan() {
 		line := scanner.Bytes()
+		logMessage("Received request raw: %s", string(line))
 		var req JSONRPCRequest
 		if err := json.Unmarshal(line, &req); err != nil {
+			logMessage("JSON Parse error: %v", err)
 			sendError(nil, -32700, "Parse error", err.Error())
 			continue
 		}
@@ -79,8 +122,17 @@ func main() {
 	}
 
 	if err := scanner.Err(); err != nil {
+		logMessage("Error reading stdin: %v", err)
 		fmt.Fprintln(os.Stderr, "Error reading stdin:", err)
 		os.Exit(1)
+	}
+}
+
+func logMessage(format string, args ...interface{}) {
+	if logFile != nil {
+		timestamp := time.Now().Format("2006-01-02 15:04:05")
+		msg := fmt.Sprintf("[%s] %s\n", timestamp, fmt.Sprintf(format, args...))
+		_, _ = logFile.WriteString(msg)
 	}
 }
 
@@ -92,9 +144,11 @@ func sendResponse(id interface{}, result interface{}) {
 	}
 	data, err := json.Marshal(resp)
 	if err != nil {
+		logMessage("Error marshaling response: %v", err)
 		fmt.Fprintln(os.Stderr, "Error marshaling response:", err)
 		return
 	}
+	logMessage("Sending response: %s", string(data))
 	os.Stdout.Write(data)
 	os.Stdout.Write([]byte("\n"))
 }
@@ -111,14 +165,17 @@ func sendError(id interface{}, code int, message string, data interface{}) {
 	}
 	respData, err := json.Marshal(resp)
 	if err != nil {
+		logMessage("Error marshaling error response: %v", err)
 		fmt.Fprintln(os.Stderr, "Error marshaling error response:", err)
 		return
 	}
+	logMessage("Sending error response: %s", string(respData))
 	os.Stdout.Write(respData)
 	os.Stdout.Write([]byte("\n"))
 }
 
 func handleRequest(req *JSONRPCRequest) {
+	logMessage("Handling method: %s", req.Method)
 	switch req.Method {
 	case "initialize":
 		result := map[string]interface{}{
@@ -211,7 +268,8 @@ func getToolsList() []Tool {
 					},
 					"model": map[string]interface{}{
 						"type":        "string",
-						"description": "Optional model name to use (e.g., 'imagen-4.0-generate-001'). Defaults to 'imagen-4.0-generate-001'.",
+						"description": "Optional model name to use. Defaults to 'imagen-4.0-generate-001'.",
+						"enum":        []string{"imagen-4.0-generate-001", "imagen-4.0-ultra-generate-001", "imagen-4.0-fast-generate-001"},
 					},
 					"aspectRatio": map[string]interface{}{
 						"type":        "string",
@@ -619,12 +677,19 @@ func handleGenerateImage(id interface{}, apiKey, prompt string, customModel, asp
 
 	payloadData, err := json.Marshal(reqPayload)
 	if err != nil {
+		logMessage("Internal payload formatting error: %v", err)
 		sendError(id, -32603, "Internal payload formatting error", err.Error())
 		return
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadData))
+	logMessage("Sending generate_image request to URL: %s, model: %s", url, model)
+	ctx := globalCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(payloadData))
 	if err != nil {
+		logMessage("Internal request creation error: %v", err)
 		sendError(id, -32603, "Internal request creation error", err.Error())
 		return
 	}
@@ -632,6 +697,7 @@ func handleGenerateImage(id interface{}, apiKey, prompt string, customModel, asp
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		logMessage("HTTP request failed: %v", err)
 		sendError(id, -32603, "HTTP request failed", err.Error())
 		return
 	}
@@ -639,9 +705,11 @@ func handleGenerateImage(id interface{}, apiKey, prompt string, customModel, asp
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		logMessage("Gemini API call failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 		sendError(id, -32603, fmt.Sprintf("Gemini API call failed with status %d", resp.StatusCode), string(bodyBytes))
 		return
 	}
+	logMessage("Gemini API call succeeded with status %d", resp.StatusCode)
 
 	var geminiResp GeminiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
@@ -762,12 +830,19 @@ func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, as
 
 	payloadData, err := json.Marshal(reqPayload)
 	if err != nil {
+		logMessage("Internal payload formatting error: %v", err)
 		sendError(id, -32603, "Internal payload formatting error", err.Error())
 		return
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadData))
+	logMessage("Sending generate_imagen request to URL: %s, model: %s", url, model)
+	ctx := globalCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(payloadData))
 	if err != nil {
+		logMessage("Internal request creation error: %v", err)
 		sendError(id, -32603, "Internal request creation error", err.Error())
 		return
 	}
@@ -775,6 +850,7 @@ func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, as
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		logMessage("HTTP request failed: %v", err)
 		sendError(id, -32603, "HTTP request failed", err.Error())
 		return
 	}
@@ -782,9 +858,11 @@ func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, as
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		logMessage("Imagen API call failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 		sendError(id, -32603, fmt.Sprintf("Imagen API call failed with status %d", resp.StatusCode), string(bodyBytes))
 		return
 	}
+	logMessage("Imagen API call succeeded with status %d", resp.StatusCode)
 
 	var imagenResp ImagenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&imagenResp); err != nil {
@@ -915,12 +993,19 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 
 	payloadData, err := json.Marshal(reqPayload)
 	if err != nil {
+		logMessage("Internal payload formatting error: %v", err)
 		sendError(id, -32603, "Internal payload formatting error", err.Error())
 		return
 	}
 
-	req, err := http.NewRequest("POST", url, bytes.NewBuffer(payloadData))
+	logMessage("Sending edit_image request to URL: %s, model: %s", url, model)
+	ctx := globalCtx
+	if ctx == nil {
+		ctx = context.Background()
+	}
+	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(payloadData))
 	if err != nil {
+		logMessage("Internal request creation error: %v", err)
 		sendError(id, -32603, "Internal request creation error", err.Error())
 		return
 	}
@@ -928,6 +1013,7 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 
 	resp, err := httpClient.Do(req)
 	if err != nil {
+		logMessage("HTTP request failed: %v", err)
 		sendError(id, -32603, "HTTP request failed", err.Error())
 		return
 	}
@@ -935,9 +1021,11 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
+		logMessage("Gemini API call failed with status %d: %s", resp.StatusCode, string(bodyBytes))
 		sendError(id, -32603, fmt.Sprintf("Gemini API call failed with status %d", resp.StatusCode), string(bodyBytes))
 		return
 	}
+	logMessage("Gemini API call succeeded with status %d", resp.StatusCode)
 
 	var geminiResp GeminiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
@@ -1006,4 +1094,68 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 	sendResponse(id, map[string]interface{}{
 		"content": content,
 	})
+}
+
+func runSetupWizard() {
+	reader := bufio.NewReader(os.Stdin)
+	fmt.Println("🍌 Nano Banana MCP v2 - Interactive Setup Wizard 🍌")
+	fmt.Println("==================================================")
+	fmt.Println("This wizard will help you configure your Google AI Studio API key.")
+	fmt.Println()
+
+	var apiKey string
+	for {
+		fmt.Print("Enter your Gemini API key (should start with AIza...): ")
+		input, err := reader.ReadString('\n')
+		if err != nil {
+			fmt.Printf("❌ Error reading input: %v\n", err)
+			os.Exit(1)
+		}
+		apiKey = strings.TrimSpace(input)
+		if apiKey == "" {
+			fmt.Println("❌ API key cannot be empty. Please try again.")
+			continue
+		}
+		break
+	}
+
+	fmt.Println("\n🔍 Validating your API key against Google AI Studio API...")
+	
+	url := fmt.Sprintf("https://generativelanguage.googleapis.com/v1beta/models?key=%s", apiKey)
+	resp, err := httpClient.Get(url)
+	if err != nil {
+		fmt.Printf("❌ Connection error while validating key: %v\n", err)
+		os.Exit(1)
+	}
+	defer resp.Body.Close()
+
+	if resp.StatusCode != http.StatusOK {
+		bodyBytes, _ := io.ReadAll(resp.Body)
+		var errResp struct {
+			Error struct {
+				Code    int    `json:"code"`
+				Message string `json:"message"`
+				Status  string `json:"status"`
+			} `json:"error"`
+		}
+		_ = json.Unmarshal(bodyBytes, &errResp)
+		if errResp.Error.Message != "" {
+			fmt.Printf("❌ API key validation failed (Status %d): %s\n", resp.StatusCode, errResp.Error.Message)
+		} else {
+			fmt.Printf("❌ API key validation failed with HTTP status %d\n", resp.StatusCode)
+		}
+		os.Exit(1)
+	}
+
+	fmt.Println("✅ API key is valid!")
+
+	fmt.Println("\n💾 Saving configuration...")
+	if err := saveConfig(apiKey); err != nil {
+		fmt.Printf("❌ Failed to save configuration: %v\n", err)
+		os.Exit(1)
+	}
+
+	home, _ := os.UserHomeDir()
+	globalPath := filepath.Join(home, ".nano-banana-config.json")
+	fmt.Printf("🎉 Setup completed successfully! Key saved to: %s\n", globalPath)
 }

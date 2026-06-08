@@ -13,6 +13,10 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - **Statically Defined Metadata**: Removed `package.json` dependency; server name and version are now compiled directly into the binary.
 
 ### Added
+- **Robust File Logging**: Added diagnostic file logging via `NANO_BANANA_LOG_FILE` environment variable to safely trace RPC messages and API client status without corrupting the standard I/O stream.
+- **Multi-model Imagen 4 Support**: Added support and autocomplete options for high-fidelity (`imagen-4.0-ultra-generate-001`) and speed-optimized (`imagen-4.0-fast-generate-001`) Imagen models.
+- **Graceful Shutdown**: Implemented OS signal traps (`SIGINT`/`SIGTERM`) and propagated Go context controls to all outgoing API HTTP requests for quick cleanup.
+- **Interactive Setup CLI Helper**: Added a `--setup` startup flag that validates the user's API key directly against Google's models list endpoint and saves it globally.
 - Added release, build, and license badges to the `README.md`.
 - Implemented global configuration file path (`~/.nano-banana-config.json`) as a fallback in Go, resolving path resolution issues when run globally.
 - Added a new `generate_imagen` tool supporting multiple images, aspect ratios, and negative prompts.
