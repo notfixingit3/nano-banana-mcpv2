@@ -15,17 +15,18 @@ jobs:
       - name: Checkout code
         uses: actions/checkout@v4
 
-      - name: Setup Node.js
-        uses: actions/setup-node@v4
+      - name: Set up Go
+        uses: actions/setup-go@v5
         with:
-          node-version: 18
-          cache: 'npm'
+          go-version: '1.22'
+          cache: true
 
-      - name: Install dependencies
-        run: npm ci
-
-      - name: Build project
-        run: npm run build
+      - name: Build binary
+        run: |
+          CGO_ENABLED=0 GOOS=linux GOARCH=amd64 go build -ldflags="-w -s" -o nano-banana-mcpv2-linux-amd64 main.go
+          CGO_ENABLED=0 GOOS=darwin GOARCH=arm64 go build -ldflags="-w -s" -o nano-banana-mcpv2-darwin-arm64 main.go
+          CGO_ENABLED=0 GOOS=darwin GOARCH=amd64 go build -ldflags="-w -s" -o nano-banana-mcpv2-darwin-amd64 main.go
+          CGO_ENABLED=0 GOOS=windows GOARCH=amd64 go build -ldflags="-w -s" -o nano-banana-mcpv2-windows-amd64.exe main.go
 
       - name: Create GitHub Release
         env:
@@ -39,6 +40,10 @@ jobs:
           fi
 
           gh release create "${{ github.ref_name }}" \
+            nano-banana-mcpv2-linux-amd64 \
+            nano-banana-mcpv2-darwin-arm64 \
+            nano-banana-mcpv2-darwin-amd64 \
+            nano-banana-mcpv2-windows-amd64.exe \
             $PRERELEASE_FLAG \
             --title "Release ${{ github.ref_name }}" \
             --generate-notes
