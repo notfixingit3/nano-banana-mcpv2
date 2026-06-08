@@ -802,6 +802,18 @@ class NanoBananaMCP {
         this.config = ConfigSchema.parse(parsedConfig);
         this.genAI = new GoogleGenAI({ apiKey: this.config.geminiApiKey });
         this.configSource = 'config_file';
+        
+        // Auto-migrate: if we loaded from local config and global config doesn't exist, write it globally!
+        if (configPath === localConfigPath) {
+          try {
+            await fs.access(globalConfigPath);
+          } catch {
+            // Global config doesn't exist, save it globally
+            await fs.writeFile(globalConfigPath, JSON.stringify(this.config, null, 2));
+            console.error(`[nano-banana-mcpv2] Automatically migrated local configuration to global: ${globalConfigPath}`);
+          }
+        }
+        
         return;
       } catch {
         // Config file doesn't exist or is invalid, try next one

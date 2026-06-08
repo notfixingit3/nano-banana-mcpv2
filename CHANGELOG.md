@@ -12,6 +12,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Implemented global configuration file path (`~/.nano-banana-config.json`) as a fallback, solving path resolution issues when installing globally or running in different workspace directories.
 - Added a new `generate_imagen` tool to utilize Google's dedicated Imagen generation model (`imagen-3.0-generate-002`) supporting multiple images, aspect ratios, and negative prompts.
 - Added `aspectRatio` parameter to `generate_image` tool using the new `imageConfig` API in Gemini.
+- Added transparent auto-migration of local configurations: loading a local `.nano-banana-config.json` automatically saves it globally to `~/.nano-banana-config.json` if no global file exists.
 
 ## [0.1.0] - 2026-06-08
 
