@@ -28,6 +28,8 @@ Here is a preview image generated using the `generate_imagen` tool with the defa
   <img src="assets/sample_output.png" alt="Sample Imagen 4 Output" width="400" />
 </p>
 
+For full visual verification and diagnostic logs for this version tag, see the [TEST_REPORT.md](TEST_REPORT.md).
+
 ---
 
 ## ✨ Features
