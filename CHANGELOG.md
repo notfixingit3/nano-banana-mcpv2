@@ -10,6 +10,8 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ### Added
 - Added release, build, and license badges to the `README.md`.
 - Implemented global configuration file path (`~/.nano-banana-config.json`) as a fallback, solving path resolution issues when installing globally or running in different workspace directories.
+- Added a new `generate_imagen` tool to utilize Google's dedicated Imagen generation model (`imagen-3.0-generate-002`) supporting multiple images, aspect ratios, and negative prompts.
+- Added `aspectRatio` parameter to `generate_image` tool using the new `imageConfig` API in Gemini.
 
 ## [0.1.0] - 2026-06-08
 

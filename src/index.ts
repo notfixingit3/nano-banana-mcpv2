@@ -82,6 +82,44 @@ class NanoBananaMCP {
                   type: "string",
                   description: "Optional model name to use for image generation (e.g., 'gemini-3.1-flash-image' or 'gemini-3-pro-image'). Defaults to the value of environment variable GEMINI_IMAGE_MODEL, or 'gemini-3.1-flash-image' if unset.",
                 },
+                aspectRatio: {
+                  type: "string",
+                  enum: ["1:1", "16:9", "9:16", "4:3", "3:4"],
+                  description: "Optional aspect ratio for the generated image. Defaults to '1:1'.",
+                },
+              },
+              required: ["prompt"],
+            },
+          },
+          {
+            name: "generate_imagen",
+            description: "Generate a NEW image from text prompt using Google's dedicated Imagen model (e.g. 'imagen-3.0-generate-002'). Optimized for high-fidelity text-to-image.",
+            inputSchema: {
+              type: "object",
+              properties: {
+                prompt: {
+                  type: "string",
+                  description: "Text prompt describing the NEW image to generate",
+                },
+                model: {
+                  type: "string",
+                  description: "Optional model name to use (e.g., 'imagen-3.0-generate-002'). Defaults to 'imagen-3.0-generate-002'.",
+                },
+                aspectRatio: {
+                  type: "string",
+                  enum: ["1:1", "3:4", "4:3", "9:16", "16:9"],
+                  description: "Optional aspect ratio for the generated image. Defaults to '1:1'.",
+                },
+                numberOfImages: {
+                  type: "integer",
+                  minimum: 1,
+                  maximum: 4,
+                  description: "Optional number of images to generate (1-4). Defaults to 1.",
+                },
+                negativePrompt: {
+                  type: "string",
+                  description: "Optional description of elements to avoid in the generated image.",
+                },
               },
               required: ["prompt"],
             },
@@ -171,6 +209,9 @@ class NanoBananaMCP {
           case "generate_image":
             return await this.generateImage(request);
           
+          case "generate_imagen":
+            return await this.generateImagen(request);
+          
           case "edit_image":
             return await this.editImage(request);
           
@@ -228,13 +269,23 @@ class NanoBananaMCP {
       throw new McpError(ErrorCode.InvalidRequest, "Gemini API token not configured. Use configure_gemini_token first.");
     }
 
-    const { prompt, model: customModel } = request.params.arguments as { prompt: string; model?: string };
+    const { prompt, model: customModel, aspectRatio } = request.params.arguments as { 
+      prompt: string; 
+      model?: string;
+      aspectRatio?: string;
+    };
     const model = this.resolveModel(customModel);
     
     try {
+      const config: any = {};
+      if (aspectRatio) {
+        config.imageConfig = { aspectRatio };
+      }
+
       const response = await this.genAI!.models.generateContent({
         model: model,
         contents: prompt,
+        config: config,
       });
       
       // Process response to extract image data
@@ -309,6 +360,101 @@ class NanoBananaMCP {
       throw new McpError(
         ErrorCode.InternalError,
         `Failed to generate image: ${error instanceof Error ? error.message : String(error)}`
+      );
+    }
+  }
+
+  private async generateImagen(request: CallToolRequest): Promise<CallToolResult> {
+    if (!this.ensureConfigured()) {
+      throw new McpError(ErrorCode.InvalidRequest, "Gemini API token not configured. Use configure_gemini_token first.");
+    }
+
+    const { prompt, model: customModel, aspectRatio, numberOfImages, negativePrompt } = request.params.arguments as { 
+      prompt: string; 
+      model?: string;
+      aspectRatio?: "1:1" | "3:4" | "4:3" | "9:16" | "16:9";
+      numberOfImages?: number;
+      negativePrompt?: string;
+    };
+    
+    const model = customModel || "imagen-3.0-generate-002";
+    
+    try {
+      const config: any = {};
+      if (aspectRatio) config.aspectRatio = aspectRatio;
+      if (numberOfImages !== undefined) config.numberOfImages = numberOfImages;
+      if (negativePrompt) config.negativePrompt = negativePrompt;
+
+      const response = await this.genAI!.models.generateImages({
+        model: model,
+        prompt: prompt,
+        config: config
+      });
+      
+      const content: any[] = [];
+      const savedFiles: string[] = [];
+      
+      // Get appropriate save directory based on OS
+      const imagesDir = this.getImagesDirectory();
+      await fs.mkdir(imagesDir, { recursive: true, mode: 0o755 });
+      
+      if (response.generatedImages && response.generatedImages.length > 0) {
+        for (const generatedImage of response.generatedImages) {
+          const imgBytes = generatedImage.image?.imageBytes;
+          if (imgBytes) {
+            const timestamp = new Date().toISOString().replace(/[:.]/g, '-');
+            const randomId = Math.random().toString(36).substring(2, 8);
+            const fileName = `imagen-${timestamp}-${randomId}.png`;
+            const filePath = path.join(imagesDir, fileName);
+            
+            const imageBuffer = Buffer.from(imgBytes, 'base64');
+            await fs.writeFile(filePath, imageBuffer);
+            savedFiles.push(filePath);
+            this.lastImagePath = filePath;
+            
+            // Add image to MCP response
+            content.push({
+              type: "image",
+              data: imgBytes,
+              mimeType: "image/png",
+            });
+          }
+        }
+      }
+      
+      // Build response content
+      let statusText = `🎨 Image(s) generated using Google Imagen (${model})!\n\nPrompt: "${prompt}"`;
+      if (aspectRatio) {
+        statusText += `\nAspect Ratio: ${aspectRatio}`;
+      }
+      if (negativePrompt) {
+        statusText += `\nNegative Prompt: "${negativePrompt}"`;
+      }
+      
+      if (savedFiles.length > 0) {
+        statusText += `\n\n📁 Image(s) saved to:\n${savedFiles.map(f => `- ${f}`).join('\n')}`;
+        statusText += `\n\n💡 View the image by:`;
+        statusText += `\n1. Opening the file at the path above`;
+        statusText += `\n2. Clicking on "Called generate_imagen" in Cursor/Claude to expand details`;
+        statusText += `\n\n🔄 To modify the last image, use: continue_editing`;
+        statusText += `\n📋 To check current image info, use: get_last_image_info`;
+      } else {
+        statusText += `\n\nNote: No image was returned by the Imagen API.`;
+      }
+      
+      // Add text content first
+      content.unshift({
+        type: "text",
+        text: statusText,
+      });
+      
+      return { content };
+      
+    } catch (error) {
+      console.error("Error generating Imagen image:", error);
+      throw new McpError(
+        ErrorCode.InternalError,
+        `Failed to generate Imagen image: ${error instanceof Error ? error.message : String(error)}`
       );
     }
   }

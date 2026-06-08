@@ -96,9 +96,18 @@ Then configure your client to run it globally:
 ## 🔧 Available Tools
 
 ### `generate_image`
-Create a new image from a text description.
+Create a new image from a text description using Gemini multimodal native generation.
 *   **`prompt`** (required): Description of the image to generate.
-*   **`model`** (optional): Custom model name to use for this generation.
+*   **`model`** (optional): Custom model name to use for this generation (e.g., `gemini-3.1-flash-image`).
+*   **`aspectRatio`** (optional): Aspect ratio for the image (`1:1`, `16:9`, `9:16`, `4:3`, `3:4`). Defaults to `1:1`.
+
+### `generate_imagen`
+Generate a new high-fidelity image from a text description using Google's dedicated Imagen model (e.g., `imagen-3.0-generate-002`).
+*   **`prompt`** (required): Description of the image to generate.
+*   **`model`** (optional): Dedicated Imagen model version (defaults to `imagen-3.0-generate-002`).
+*   **`aspectRatio`** (optional): Aspect ratio for the image (`1:1`, `16:9`, `9:16`, `4:3`, `3:4`). Defaults to `1:1`.
+*   **`numberOfImages`** (optional): Number of images to generate (1 to 4). Defaults to `1`.
+*   **`negativePrompt`** (optional): Description of elements to avoid in the generated image.
 
 ### `edit_image`
 Modify a specific existing image file.
