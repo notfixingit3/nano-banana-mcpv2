@@ -14,12 +14,16 @@ import {
 import { GoogleGenAI } from "@google/genai";
 import { z } from "zod";
 import fs from "fs/promises";
+import { readFileSync } from "fs";
 import path from "path";
 import { config as dotenvConfig } from "dotenv";
 import os from "os";
 
 // Load environment variables
 dotenvConfig();
+
+// Read package.json dynamically for name and version
+const pkg = JSON.parse(readFileSync(new URL("../package.json", import.meta.url), "utf-8"));
 
 const ConfigSchema = z.object({
   geminiApiKey: z.string().min(1, "Gemini API key is required"),
@@ -37,8 +41,8 @@ class NanoBananaMCP {
   constructor() {
     this.server = new Server(
       {
-        name: "nano-banana-mcp",
-        version: "1.0.0",
+        name: pkg.name,
+        version: pkg.version,
       },
       {
         capabilities: {

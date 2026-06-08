@@ -13,6 +13,7 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 - Added a new `generate_imagen` tool to utilize Google's dedicated Imagen generation model (`imagen-3.0-generate-002`) supporting multiple images, aspect ratios, and negative prompts.
 - Added `aspectRatio` parameter to `generate_image` tool using the new `imageConfig` API in Gemini.
 - Added transparent auto-migration of local configurations: loading a local `.nano-banana-config.json` automatically saves it globally to `~/.nano-banana-config.json` if no global file exists.
+- Updated server initialization to dynamically read package metadata (`name` and `version`) from `package.json`, ensuring client lists display `"nano-banana-mcpv2"` and the correct pre-release/stable version.
 
 ## [0.1.0] - 2026-06-08
 
