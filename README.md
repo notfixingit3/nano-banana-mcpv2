@@ -157,9 +157,9 @@ Create a new image from a text description using Gemini multimodal native genera
 *   **`aspectRatio`** (optional): Aspect ratio for the image (`1:1`, `16:9`, `9:16`, `4:3`, `3:4`). Defaults to `1:1`.
 
 ### `generate_imagen`
-Generate a new high-fidelity image from a text description using Google's dedicated Imagen model (e.g., `imagen-3.0-generate-002`).
+Generate a new high-fidelity image from a text description using Google's dedicated Imagen model (e.g., `imagen-4.0-generate-001`).
 *   **`prompt`** (required): Description of the image to generate.
-*   **`model`** (optional): Dedicated Imagen model version (defaults to `imagen-3.0-generate-002`).
+*   **`model`** (optional): Dedicated Imagen model version (defaults to `imagen-4.0-generate-001`).
 *   **`aspectRatio`** (optional): Aspect ratio for the image (`1:1`, `16:9`, `9:16`, `4:3`, `3:4`). Defaults to `1:1`.
 *   **`numberOfImages`** (optional): Number of images to generate (1 to 4). Defaults to `1`.
 *   **`negativePrompt`** (optional): Description of elements to avoid in the generated image.

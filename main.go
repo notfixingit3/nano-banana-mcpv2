@@ -211,7 +211,7 @@ func getToolsList() []Tool {
 					},
 					"model": map[string]interface{}{
 						"type":        "string",
-						"description": "Optional model name to use (e.g., 'imagen-3.0-generate-002'). Defaults to 'imagen-3.0-generate-002'.",
+						"description": "Optional model name to use (e.g., 'imagen-4.0-generate-001'). Defaults to 'imagen-4.0-generate-001'.",
 					},
 					"aspectRatio": map[string]interface{}{
 						"type":        "string",
@@ -737,7 +737,7 @@ type ImagenResponse struct {
 }
 
 func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, aspectRatio *string, numberOfImages *int, negativePrompt *string) {
-	model := "imagen-3.0-generate-002"
+	model := "imagen-4.0-generate-001"
 	if customModel != nil && *customModel != "" {
 		model = *customModel
 	}

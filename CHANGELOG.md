@@ -7,13 +7,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [0.1.1-beta.0] - 2026-06-08
 
+### Changed
+- **Complete Go Rewrite**: Rewrote the entire MCP server in standard Go (1.22+), replacing the previous TypeScript/Node.js implementation entirely. This yields a single, statically linked ~8.5MB executable with zero external runtime dependencies.
+- **Imagen Model Upgrade**: Updated the default Imagen model from the deprecated/404 `imagen-3.0-generate-002` to `imagen-4.0-generate-001` (Imagen 4).
+- **Statically Defined Metadata**: Removed `package.json` dependency; server name and version are now compiled directly into the binary.
+
 ### Added
 - Added release, build, and license badges to the `README.md`.
-- Implemented global configuration file path (`~/.nano-banana-config.json`) as a fallback, solving path resolution issues when installing globally or running in different workspace directories.
-- Added a new `generate_imagen` tool to utilize Google's dedicated Imagen generation model (`imagen-3.0-generate-002`) supporting multiple images, aspect ratios, and negative prompts.
-- Added `aspectRatio` parameter to `generate_image` tool using the new `imageConfig` API in Gemini.
-- Added transparent auto-migration of local configurations: loading a local `.nano-banana-config.json` automatically saves it globally to `~/.nano-banana-config.json` if no global file exists.
-- Updated server initialization to dynamically read package metadata (`name` and `version`) from `package.json`, ensuring client lists display `"nano-banana-mcpv2"` and the correct pre-release/stable version.
+- Implemented global configuration file path (`~/.nano-banana-config.json`) as a fallback in Go, resolving path resolution issues when run globally.
+- Added a new `generate_imagen` tool supporting multiple images, aspect ratios, and negative prompts.
+- Added `aspectRatio` parameter to `generate_image` tool using the `imageConfig` API in Gemini.
+- Added transparent auto-migration of local configurations from v1: loading a local `.nano-banana-config.json` automatically persists it globally.
+- Added a multi-stage `Dockerfile` and automated cross-compiling release workflows for Go via GitHub Actions.
 
 ## [0.1.0] - 2026-06-08
 
