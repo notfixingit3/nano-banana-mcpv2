@@ -1,3 +1,7 @@
+<p align="center">
+  <img src="assets/logo.png" alt="Nano Banana MCP v2 Logo" width="300" />
+</p>
+
 # Nano-Banana MCP Server v2 🍌
 
 An enhanced Model Context Protocol (MCP) server that provides AI image generation and editing capabilities using Google's Gemini Multimodal Image APIs (`gemini-3.1-flash-image` / `gemini-3-pro-image`).
