@@ -78,6 +78,10 @@ class NanoBananaMCP {
                   type: "string",
                   description: "Text prompt describing the NEW image to create from scratch",
                 },
+                model: {
+                  type: "string",
+                  description: "Optional model name to use for image generation (e.g., 'gemini-3.1-flash-image' or 'gemini-3-pro-image'). Defaults to the value of environment variable GEMINI_IMAGE_MODEL, or 'gemini-3.1-flash-image' if unset.",
+                },
               },
               required: ["prompt"],
             },
@@ -102,6 +106,10 @@ class NanoBananaMCP {
                     type: "string"
                   },
                   description: "Optional array of file paths to additional reference images to use during editing (e.g., for style transfer, adding elements, etc.)",
+                },
+                model: {
+                  type: "string",
+                  description: "Optional model name to use for image editing. Defaults to environment variable GEMINI_IMAGE_MODEL, or 'gemini-3.1-flash-image' if unset.",
                 },
               },
               required: ["imagePath", "prompt"],
@@ -132,6 +140,10 @@ class NanoBananaMCP {
                     type: "string"
                   },
                   description: "Optional array of file paths to additional reference images to use during editing (e.g., for style transfer, adding elements from other images, etc.)",
+                },
+                model: {
+                  type: "string",
+                  description: "Optional model name to use for image editing. Defaults to environment variable GEMINI_IMAGE_MODEL, or 'gemini-3.1-flash-image' if unset.",
                 },
               },
               required: ["prompt"],
@@ -216,11 +228,12 @@ class NanoBananaMCP {
       throw new McpError(ErrorCode.InvalidRequest, "Gemini API token not configured. Use configure_gemini_token first.");
     }
 
-    const { prompt } = request.params.arguments as { prompt: string };
+    const { prompt, model: customModel } = request.params.arguments as { prompt: string; model?: string };
+    const model = this.resolveModel(customModel);
     
     try {
       const response = await this.genAI!.models.generateContent({
-        model: "gemini-2.5-flash-image-preview",
+        model: model,
         contents: prompt,
       });
       
@@ -265,7 +278,7 @@ class NanoBananaMCP {
       }
       
       // Build response content
-      let statusText = `🎨 Image generated with nano-banana (Gemini 2.5 Flash Image)!\n\nPrompt: "${prompt}"`;
+      let statusText = `🎨 Image generated with nano-banana (${model})!\n\nPrompt: "${prompt}"`;
       
       if (textContent) {
         statusText += `\n\nDescription: ${textContent}`;
@@ -305,11 +318,13 @@ class NanoBananaMCP {
       throw new McpError(ErrorCode.InvalidRequest, "Gemini API token not configured. Use configure_gemini_token first.");
     }
 
-    const { imagePath, prompt, referenceImages } = request.params.arguments as { 
+    const { imagePath, prompt, referenceImages, model: customModel } = request.params.arguments as { 
       imagePath: string; 
       prompt: string; 
       referenceImages?: string[];
+      model?: string;
     };
+    const model = this.resolveModel(customModel);
     
     try {
       // Prepare the main image
@@ -353,7 +368,7 @@ class NanoBananaMCP {
       
       // Use new API format with multiple images and text
       const response = await this.genAI!.models.generateContent({
-        model: "gemini-2.5-flash-image-preview",
+        model: model,
         contents: [
           {
             parts: imageParts
@@ -404,7 +419,7 @@ class NanoBananaMCP {
       }
       
       // Build response
-      let statusText = `🎨 Image edited with nano-banana!\n\nOriginal: ${imagePath}\nEdit prompt: "${prompt}"`;
+      let statusText = `🎨 Image edited with nano-banana (${model})!\n\nOriginal: ${imagePath}\nEdit prompt: "${prompt}"`;
       
       if (referenceImages && referenceImages.length > 0) {
         statusText += `\n\nReference images used:\n${referenceImages.map(f => `- ${f}`).join('\n')}`;
@@ -490,9 +505,10 @@ class NanoBananaMCP {
       throw new McpError(ErrorCode.InvalidRequest, "No previous image found. Please generate or edit an image first, then use continue_editing for subsequent edits.");
     }
 
-    const { prompt, referenceImages } = request.params.arguments as { 
+    const { prompt, referenceImages, model } = request.params.arguments as { 
       prompt: string; 
       referenceImages?: string[];
+      model?: string;
     };
 
     // 检查最后的图片文件是否存在
@@ -511,7 +527,8 @@ class NanoBananaMCP {
         arguments: {
           imagePath: this.lastImagePath,
           prompt: prompt,
-          referenceImages: referenceImages
+          referenceImages: referenceImages,
+          model: model
         }
       }
     } as CallToolRequest);
@@ -556,6 +573,17 @@ class NanoBananaMCP {
 
   private ensureConfigured(): boolean {
     return this.config !== null && this.genAI !== null;
+  }
+
+  private resolveModel(customModel?: string): string {
+    if (customModel && customModel.trim().length > 0) {
+      return customModel.trim();
+    }
+    const envModel = process.env.GEMINI_IMAGE_MODEL;
+    if (envModel && envModel.trim().length > 0) {
+      return envModel.trim();
+    }
+    return "gemini-3.1-flash-image";
   }
 
   private getMimeType(filePath: string): string {
