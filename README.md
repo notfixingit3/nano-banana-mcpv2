@@ -3,6 +3,10 @@
 </p>
 
 <p align="center">
+  <sub><i>Logo generated using nano-banana-mcp 🍌</i></sub>
+</p>
+
+<p align="center">
   <a href="https://github.com/notfixingit3/nano-banana-mcpv2/actions/workflows/release.yml"><img src="https://github.com/notfixingit3/nano-banana-mcpv2/actions/workflows/release.yml/badge.svg" alt="Release Workflow Status" /></a>
   <a href="https://github.com/notfixingit3/nano-banana-mcpv2/releases"><img src="https://img.shields.io/github/v/release/notfixingit3/nano-banana-mcpv2?include_prereleases" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/notfixingit3/nano-banana-mcpv2" alt="License" /></a>
