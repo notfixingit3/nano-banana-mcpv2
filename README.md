@@ -49,7 +49,16 @@ The server checks configuration in the following priority:
 2.  **Environment Variables**:
     *   `GEMINI_API_KEY`: Your Gemini developer token from [Google AI Studio](https://aistudio.google.com/app/apikey).
     *   `GEMINI_IMAGE_MODEL`: Set a default model server-wide (e.g., `gemini-3-pro-image`).
-3.  **Local Configuration**: `.nano-banana-config.json` generated via the `configure_gemini_token` tool.
+3.  **Global Configuration**: `~/.nano-banana-config.json` generated globally via the `configure_gemini_token` tool (with fallback/auto-migration for existing local files).
+
+---
+
+## 🔄 Upgrading & Key Migration from v1
+
+If you are upgrading from the original `nano-banana-mcp` v1 server, your key migration is handled seamlessly:
+*   **Automatic Detection**: The v2 server checks the current directory for any existing `.nano-banana-config.json` files from v1.
+*   **Global Persistence**: If a local key is loaded and no global config exists, it automatically migrates the configuration globally to `~/.nano-banana-config.json`.
+*   **Directory Independence**: After running the server once in your old workspace, you can safely delete the local `.nano-banana-config.json` file and use the tools from any workspace.
 
 ---
 
