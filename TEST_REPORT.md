@@ -2,7 +2,7 @@
 
 This report documents the local integration and visual verification tests performed for the corresponding release version tag.
 
-## Version: `v0.1.1-beta.0`
+## Version: `v0.1.1`
 - **Build Date**: 2026-06-08
 - **Platform**: macOS arm64 (`darwin/arm64`)
 - **Go Version**: `go1.26.4` (compatibility target: `go1.22`)
@@ -21,7 +21,7 @@ To verify that the MCP server compiles cleanly and resolves tool requests over s
 Below is the verified test image generated for this version tag:
 
 <p align="center">
-  <img src="assets/sample_output.png" alt="Test Image for v0.1.1-beta.0" width="400" />
+  <img src="assets/sample_output.png" alt="Test Image for v0.1.1" width="400" />
 </p>
 
 ---
