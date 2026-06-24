@@ -4,6 +4,7 @@ import (
 	"bufio"
 	"bytes"
 	"context"
+	"encoding/base64"
 	"encoding/json"
 	"fmt"
 	"io"
@@ -20,7 +21,7 @@ import (
 
 const (
 	ServerName    = "nano-banana-mcpv2"
-	ServerVersion = "0.1.1"
+	ServerVersion = "0.1.2-beta.0"
 )
 
 type Config struct {
@@ -107,26 +108,39 @@ func main() {
 		os.Exit(0)
 	}()
 
-	scanner := bufio.NewScanner(os.Stdin)
+	reader := bufio.NewReader(os.Stdin)
 
-	for scanner.Scan() {
-		line := scanner.Bytes()
-		logMessage("Received request raw: %s", string(line))
-		var req JSONRPCRequest
-		if err := json.Unmarshal(line, &req); err != nil {
-			logMessage("JSON Parse error: %v", err)
-			sendError(nil, -32700, "Parse error", err.Error())
-			continue
+	for {
+		line, err := reader.ReadBytes('\n')
+		if err != nil {
+			if err == io.EOF {
+				if len(line) > 0 {
+					processRequestLine(line)
+				}
+				break
+			}
+			logMessage("Error reading stdin: %v", err)
+			fmt.Fprintln(os.Stderr, "Error reading stdin:", err)
+			os.Exit(1)
 		}
+		processRequestLine(line)
+	}
+}
 
-		handleRequest(&req)
+func processRequestLine(line []byte) {
+	line = bytes.TrimSpace(line)
+	if len(line) == 0 {
+		return
+	}
+	logMessage("Received request raw: %s", string(line))
+	var req JSONRPCRequest
+	if err := json.Unmarshal(line, &req); err != nil {
+		logMessage("JSON Parse error: %v", err)
+		sendError(nil, -32700, "Parse error", err.Error())
+		return
 	}
 
-	if err := scanner.Err(); err != nil {
-		logMessage("Error reading stdin: %v", err)
-		fmt.Fprintln(os.Stderr, "Error reading stdin:", err)
-		os.Exit(1)
-	}
+	handleRequest(&req)
 }
 
 func logMessage(format string, args ...interface{}) {
@@ -173,6 +187,31 @@ func sendError(id interface{}, code int, message string, data interface{}) {
 	logMessage("Sending error response: %s", string(respData))
 	_, _ = os.Stdout.Write(respData)
 	_, _ = os.Stdout.Write([]byte("\n"))
+}
+
+func sendToolError(id interface{}, message string, data interface{}) {
+	text := message
+	if data != nil {
+		if ds, ok := data.(string); ok && ds != "" {
+			text = fmt.Sprintf("%s\nDetails: %s", message, ds)
+		} else if dbytes, ok := data.([]byte); ok && len(dbytes) > 0 {
+			text = fmt.Sprintf("%s\nDetails: %s", message, string(dbytes))
+		} else {
+			if jsonBytes, err := json.MarshalIndent(data, "", "  "); err == nil {
+				text = fmt.Sprintf("%s\nDetails: %s", message, string(jsonBytes))
+			}
+		}
+	}
+	logMessage("Sending tool error: %s", text)
+	sendResponse(id, map[string]interface{}{
+		"content": []map[string]interface{}{
+			{
+				"type": "text",
+				"text": "❌ " + text,
+			},
+		},
+		"isError": true,
+	})
 }
 
 func handleRequest(req *JSONRPCRequest) {
@@ -423,7 +462,7 @@ func handleToolCall(id interface{}, toolName string, arguments json.RawMessage) 
 
 	// For all other tools, make sure API key is loaded
 	if apiKey == "" {
-		sendError(id, -32603, "Gemini API token not configured. Use configure_gemini_token first.", nil)
+		sendToolError(id, "Gemini API token not configured. Use configure_gemini_token first.", nil)
 		return
 	}
 
@@ -479,11 +518,11 @@ func handleToolCall(id interface{}, toolName string, arguments json.RawMessage) 
 			return
 		}
 		if lastImagePath == "" {
-			sendError(id, -32603, "No previous image found. Please generate or edit an image first.", nil)
+			sendToolError(id, "No previous image found. Please generate or edit an image first.", nil)
 			return
 		}
 		if _, err := os.Stat(lastImagePath); os.IsNotExist(err) {
-			sendError(id, -32603, fmt.Sprintf("Last image file not found at: %s. Please generate a new image.", lastImagePath), nil)
+			sendToolError(id, fmt.Sprintf("Last image file not found at: %s. Please generate a new image.", lastImagePath), nil)
 			return
 		}
 		handleEditImage(id, apiKey, lastImagePath, args.Prompt, args.ReferenceImages, args.Model, nil)
@@ -684,7 +723,7 @@ func handleGenerateImage(id interface{}, apiKey, prompt string, customModel, asp
 	payloadData, err := json.Marshal(reqPayload)
 	if err != nil {
 		logMessage("Internal payload formatting error: %v", err)
-		sendError(id, -32603, "Internal payload formatting error", err.Error())
+		sendToolError(id, "Internal payload formatting error", err.Error())
 		return
 	}
 
@@ -696,7 +735,7 @@ func handleGenerateImage(id interface{}, apiKey, prompt string, customModel, asp
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(payloadData))
 	if err != nil {
 		logMessage("Internal request creation error: %v", err)
-		sendError(id, -32603, "Internal request creation error", err.Error())
+		sendToolError(id, "Internal request creation error", err.Error())
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -704,7 +743,7 @@ func handleGenerateImage(id interface{}, apiKey, prompt string, customModel, asp
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		logMessage("HTTP request failed: %v", err)
-		sendError(id, -32603, "HTTP request failed", err.Error())
+		sendToolError(id, "HTTP request failed", err.Error())
 		return
 	}
 	defer resp.Body.Close()
@@ -712,45 +751,49 @@ func handleGenerateImage(id interface{}, apiKey, prompt string, customModel, asp
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		logMessage("Gemini API call failed with status %d: %s", resp.StatusCode, string(bodyBytes))
-		sendError(id, -32603, fmt.Sprintf("Gemini API call failed with status %d", resp.StatusCode), string(bodyBytes))
+		sendToolError(id, fmt.Sprintf("Gemini API call failed with status %d", resp.StatusCode), string(bodyBytes))
 		return
 	}
 	logMessage("Gemini API call succeeded with status %d", resp.StatusCode)
 
 	var geminiResp GeminiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
-		sendError(id, -32603, "Failed to parse API response", err.Error())
+		sendToolError(id, "Failed to parse API response", err.Error())
 		return
 	}
 
 	content := []map[string]interface{}{}
 	savedFiles := []string{}
+	var saveErrors []string
 	textContent := ""
 	imagesDir := getImagesDirectory()
 	// #nosec G301 - generated images folder should be user-browsable (0755)
-	_ = os.MkdirAll(imagesDir, 0755)
+	if err := os.MkdirAll(imagesDir, 0755); err != nil {
+		saveErrors = append(saveErrors, fmt.Sprintf("Failed to create directory %s: %v", imagesDir, err))
+	}
 
+	hasImage := false
 	if len(geminiResp.Candidates) > 0 && len(geminiResp.Candidates[0].Content.Parts) > 0 {
 		for _, part := range geminiResp.Candidates[0].Content.Parts {
 			if part.Text != "" {
 				textContent += part.Text
 			}
 			if part.InlineData != nil && part.InlineData.Data != "" {
+				hasImage = true
 				timestamp := time.Now().Format("20060102-150405")
 				// #nosec G404 - weak random is sufficient for filename random identifier
 				randomId := fmt.Sprintf("%06d", rand.Intn(1000000))
 				fileName := fmt.Sprintf("generated-%s-%s.png", timestamp, randomId)
 				filePath := filepath.Join(imagesDir, fileName)
 
-				imageBytes, err := json.Marshal(part.InlineData.Data)
-				if err != nil {
-					continue
-				}
-				var decodedBytes []byte
-				// Decode JSON string to raw bytes
-				if err := json.Unmarshal(imageBytes, &decodedBytes); err == nil {
+				decodedBytes, decodeErr := base64.StdEncoding.DecodeString(part.InlineData.Data)
+				if decodeErr != nil {
+					saveErrors = append(saveErrors, fmt.Sprintf("Base64 decoding failed: %v", decodeErr))
+				} else {
 					// #nosec G306 - generated image files must be user-viewable (0644)
-					if err := os.WriteFile(filePath, decodedBytes, 0644); err == nil {
+					if err := os.WriteFile(filePath, decodedBytes, 0644); err != nil {
+						saveErrors = append(saveErrors, fmt.Sprintf("Failed to write image file: %v", err))
+					} else {
 						savedFiles = append(savedFiles, filePath)
 						lastImagePath = filePath
 					}
@@ -769,14 +812,26 @@ func handleGenerateImage(id interface{}, apiKey, prompt string, customModel, asp
 	if textContent != "" {
 		statusText += fmt.Sprintf("\n\nDescription: %s", textContent)
 	}
+
+	if len(geminiResp.Candidates) == 0 {
+		statusText += "\n\n⚠️ Note: No response candidates were returned by the model. The request may have been blocked by safety filters."
+	} else if !hasImage {
+		statusText += "\n\n⚠️ Note: The model completed successfully but did not return any image data."
+	}
+
 	if len(savedFiles) > 0 {
 		statusText += "\n\n📁 Image saved to:\n"
 		for _, f := range savedFiles {
 			statusText += fmt.Sprintf("- %s\n", f)
 		}
 		statusText += "\n🔄 To modify this image, use: continue_editing"
-	} else {
-		statusText += "\n\nNote: No image was generated. The model may have returned only text."
+	}
+
+	if len(saveErrors) > 0 {
+		statusText += "\n\n⚠️ Warning (File Save Failed):\n"
+		for _, se := range saveErrors {
+			statusText += fmt.Sprintf("- %s\n", se)
+		}
 	}
 
 	// Insert status text at start
@@ -840,7 +895,7 @@ func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, as
 	payloadData, err := json.Marshal(reqPayload)
 	if err != nil {
 		logMessage("Internal payload formatting error: %v", err)
-		sendError(id, -32603, "Internal payload formatting error", err.Error())
+		sendToolError(id, "Internal payload formatting error", err.Error())
 		return
 	}
 
@@ -852,7 +907,7 @@ func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, as
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(payloadData))
 	if err != nil {
 		logMessage("Internal request creation error: %v", err)
-		sendError(id, -32603, "Internal request creation error", err.Error())
+		sendToolError(id, "Internal request creation error", err.Error())
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -860,7 +915,7 @@ func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, as
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		logMessage("HTTP request failed: %v", err)
-		sendError(id, -32603, "HTTP request failed", err.Error())
+		sendToolError(id, "HTTP request failed", err.Error())
 		return
 	}
 	defer resp.Body.Close()
@@ -868,22 +923,25 @@ func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, as
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		logMessage("Imagen API call failed with status %d: %s", resp.StatusCode, string(bodyBytes))
-		sendError(id, -32603, fmt.Sprintf("Imagen API call failed with status %d", resp.StatusCode), string(bodyBytes))
+		sendToolError(id, fmt.Sprintf("Imagen API call failed with status %d", resp.StatusCode), string(bodyBytes))
 		return
 	}
 	logMessage("Imagen API call succeeded with status %d", resp.StatusCode)
 
 	var imagenResp ImagenResponse
 	if err := json.NewDecoder(resp.Body).Decode(&imagenResp); err != nil {
-		sendError(id, -32603, "Failed to parse API response", err.Error())
+		sendToolError(id, "Failed to parse API response", err.Error())
 		return
 	}
 
 	content := []map[string]interface{}{}
 	savedFiles := []string{}
+	var saveErrors []string
 	imagesDir := getImagesDirectory()
 	// #nosec G301 - generated images folder should be user-browsable (0755)
-	_ = os.MkdirAll(imagesDir, 0755)
+	if err := os.MkdirAll(imagesDir, 0755); err != nil {
+		saveErrors = append(saveErrors, fmt.Sprintf("Failed to create directory %s: %v", imagesDir, err))
+	}
 
 	for _, pred := range imagenResp.Predictions {
 		if pred.BytesBase64Encoded != "" {
@@ -893,14 +951,14 @@ func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, as
 			fileName := fmt.Sprintf("imagen-%s-%s.png", timestamp, randomId)
 			filePath := filepath.Join(imagesDir, fileName)
 
-			imageBytes, err := json.Marshal(pred.BytesBase64Encoded)
-			if err != nil {
-				continue
-			}
-			var decodedBytes []byte
-			if err := json.Unmarshal(imageBytes, &decodedBytes); err == nil {
+			decodedBytes, decodeErr := base64.StdEncoding.DecodeString(pred.BytesBase64Encoded)
+			if decodeErr != nil {
+				saveErrors = append(saveErrors, fmt.Sprintf("Base64 decoding failed: %v", decodeErr))
+			} else {
 				// #nosec G306 - generated image files must be user-viewable (0644)
-				if err := os.WriteFile(filePath, decodedBytes, 0644); err == nil {
+				if err := os.WriteFile(filePath, decodedBytes, 0644); err != nil {
+					saveErrors = append(saveErrors, fmt.Sprintf("Failed to write image file: %v", err))
+				} else {
 					savedFiles = append(savedFiles, filePath)
 					lastImagePath = filePath
 				}
@@ -928,8 +986,15 @@ func handleGenerateImagen(id interface{}, apiKey, prompt string, customModel, as
 			statusText += fmt.Sprintf("- %s\n", f)
 		}
 		statusText += "\n🔄 To modify the last image, use: continue_editing"
-	} else {
-		statusText += "\n\nNote: No image was returned by the Imagen API."
+	} else if len(imagenResp.Predictions) == 0 {
+		statusText += "\n\nNote: No image predictions were returned by the Imagen API. The request may have been filtered or blocked."
+	}
+
+	if len(saveErrors) > 0 {
+		statusText += "\n\n⚠️ Warning (File Save Failed):\n"
+		for _, se := range saveErrors {
+			statusText += fmt.Sprintf("- %s\n", se)
+		}
 	}
 
 	textPart := map[string]interface{}{
@@ -951,14 +1016,11 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 	// #nosec G304 - reading base image path is intentional and requested by user/client
 	imgData, err := os.ReadFile(imagePath)
 	if err != nil {
-		sendError(id, -32603, fmt.Sprintf("Failed to read image at %s", imagePath), err.Error())
+		sendToolError(id, fmt.Sprintf("Failed to read image at %s", imagePath), err.Error())
 		return
 	}
 	mainMimeType := getMimeType(imagePath)
-
-	var mainB64 string
-	mainB64Bytes, _ := json.Marshal(imgData)
-	_ = json.Unmarshal(mainB64Bytes, &mainB64)
+	mainB64 := base64.StdEncoding.EncodeToString(imgData)
 
 	parts := []GeminiPart{
 		{
@@ -974,9 +1036,7 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 		// #nosec G304 - reading reference image path is intentional and requested by user/client
 		if refBytes, err := os.ReadFile(refPath); err == nil {
 			refMimeType := getMimeType(refPath)
-			var refB64 string
-			refB64Bytes, _ := json.Marshal(refBytes)
-			_ = json.Unmarshal(refB64Bytes, &refB64)
+			refB64 := base64.StdEncoding.EncodeToString(refBytes)
 
 			parts = append(parts, GeminiPart{
 				InlineData: &InlineData{
@@ -1008,7 +1068,7 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 	payloadData, err := json.Marshal(reqPayload)
 	if err != nil {
 		logMessage("Internal payload formatting error: %v", err)
-		sendError(id, -32603, "Internal payload formatting error", err.Error())
+		sendToolError(id, "Internal payload formatting error", err.Error())
 		return
 	}
 
@@ -1020,7 +1080,7 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 	req, err := http.NewRequestWithContext(ctx, "POST", url, bytes.NewBuffer(payloadData))
 	if err != nil {
 		logMessage("Internal request creation error: %v", err)
-		sendError(id, -32603, "Internal request creation error", err.Error())
+		sendToolError(id, "Internal request creation error", err.Error())
 		return
 	}
 	req.Header.Set("Content-Type", "application/json")
@@ -1028,7 +1088,7 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 	resp, err := httpClient.Do(req)
 	if err != nil {
 		logMessage("HTTP request failed: %v", err)
-		sendError(id, -32603, "HTTP request failed", err.Error())
+		sendToolError(id, "HTTP request failed", err.Error())
 		return
 	}
 	defer resp.Body.Close()
@@ -1036,44 +1096,49 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 	if resp.StatusCode != http.StatusOK {
 		bodyBytes, _ := io.ReadAll(resp.Body)
 		logMessage("Gemini API call failed with status %d: %s", resp.StatusCode, string(bodyBytes))
-		sendError(id, -32603, fmt.Sprintf("Gemini API call failed with status %d", resp.StatusCode), string(bodyBytes))
+		sendToolError(id, fmt.Sprintf("Gemini API call failed with status %d", resp.StatusCode), string(bodyBytes))
 		return
 	}
 	logMessage("Gemini API call succeeded with status %d", resp.StatusCode)
 
 	var geminiResp GeminiResponse
 	if err := json.NewDecoder(resp.Body).Decode(&geminiResp); err != nil {
-		sendError(id, -32603, "Failed to parse API response", err.Error())
+		sendToolError(id, "Failed to parse API response", err.Error())
 		return
 	}
 
 	content := []map[string]interface{}{}
 	savedFiles := []string{}
+	var saveErrors []string
 	textContent := ""
 	imagesDir := getImagesDirectory()
 	// #nosec G301 - generated images folder should be user-browsable (0755)
-	_ = os.MkdirAll(imagesDir, 0755)
+	if err := os.MkdirAll(imagesDir, 0755); err != nil {
+		saveErrors = append(saveErrors, fmt.Sprintf("Failed to create directory %s: %v", imagesDir, err))
+	}
 
+	hasImage := false
 	if len(geminiResp.Candidates) > 0 && len(geminiResp.Candidates[0].Content.Parts) > 0 {
 		for _, part := range geminiResp.Candidates[0].Content.Parts {
 			if part.Text != "" {
 				textContent += part.Text
 			}
 			if part.InlineData != nil && part.InlineData.Data != "" {
+				hasImage = true
 				timestamp := time.Now().Format("20060102-150405")
 				// #nosec G404 - weak random is sufficient for filename random identifier
 				randomId := fmt.Sprintf("%06d", rand.Intn(1000000))
 				fileName := fmt.Sprintf("edited-%s-%s.png", timestamp, randomId)
 				filePath := filepath.Join(imagesDir, fileName)
 
-				imageBytes, err := json.Marshal(part.InlineData.Data)
-				if err != nil {
-					continue
-				}
-				var decodedBytes []byte
-				if err := json.Unmarshal(imageBytes, &decodedBytes); err == nil {
+				decodedBytes, decodeErr := base64.StdEncoding.DecodeString(part.InlineData.Data)
+				if decodeErr != nil {
+					saveErrors = append(saveErrors, fmt.Sprintf("Base64 decoding failed: %v", decodeErr))
+				} else {
 					// #nosec G306 - generated image files must be user-viewable (0644)
-					if err := os.WriteFile(filePath, decodedBytes, 0644); err == nil {
+					if err := os.WriteFile(filePath, decodedBytes, 0644); err != nil {
+						saveErrors = append(saveErrors, fmt.Sprintf("Failed to write image file: %v", err))
+					} else {
 						savedFiles = append(savedFiles, filePath)
 						lastImagePath = filePath
 					}
@@ -1092,14 +1157,26 @@ func handleEditImage(id interface{}, apiKey, imagePath, prompt string, reference
 	if textContent != "" {
 		statusText += fmt.Sprintf("\n\nDescription: %s", textContent)
 	}
+
+	if len(geminiResp.Candidates) == 0 {
+		statusText += "\n\n⚠️ Note: No response candidates were returned by the model. The request may have been blocked by safety filters."
+	} else if !hasImage {
+		statusText += "\n\n⚠️ Note: The model completed successfully but did not return any image data."
+	}
+
 	if len(savedFiles) > 0 {
 		statusText += "\n\n📁 Edited image saved to:\n"
 		for _, f := range savedFiles {
 			statusText += fmt.Sprintf("- %s\n", f)
 		}
 		statusText += "\n🔄 To modify this image, use: continue_editing"
-	} else {
-		statusText += "\n\nNote: No edited image was generated."
+	}
+
+	if len(saveErrors) > 0 {
+		statusText += "\n\n⚠️ Warning (File Save Failed):\n"
+		for _, se := range saveErrors {
+			statusText += fmt.Sprintf("- %s\n", se)
+		}
 	}
 
 	textPart := map[string]interface{}{
