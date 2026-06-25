@@ -10,6 +10,9 @@
   <a href="https://github.com/notfixingit3/nano-banana-mcpv2/actions/workflows/release.yml"><img src="https://github.com/notfixingit3/nano-banana-mcpv2/actions/workflows/release.yml/badge.svg" alt="Release Workflow Status" /></a>
   <a href="https://github.com/notfixingit3/nano-banana-mcpv2/releases"><img src="https://img.shields.io/github/v/release/notfixingit3/nano-banana-mcpv2?include_prereleases" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/notfixingit3/nano-banana-mcpv2" alt="License" /></a>
+  <a href="https://goreportcard.com/report/github.com/notfixingit3/nano-banana-mcpv2"><img src="https://goreportcard.com/badge/github.com/notfixingit3/nano-banana-mcpv2" alt="Go Report Card" /></a>
+  <a href="https://github.com/sponsors/notfixingit3"><img src="https://img.shields.io/github/sponsors/notfixingit3?label=Sponsor&logo=github&color=pink" alt="GitHub Sponsors" /></a>
+  <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white" alt="Go 1.22+" />
 </p>
 
 # Nano-Banana MCP Server v2 🍌
