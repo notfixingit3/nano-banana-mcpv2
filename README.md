@@ -10,6 +10,9 @@
   <a href="https://github.com/notfixingit3/nano-banana-mcpv2/actions/workflows/release.yml"><img src="https://github.com/notfixingit3/nano-banana-mcpv2/actions/workflows/release.yml/badge.svg" alt="Release Workflow Status" /></a>
   <a href="https://github.com/notfixingit3/nano-banana-mcpv2/releases"><img src="https://img.shields.io/github/v/release/notfixingit3/nano-banana-mcpv2?include_prereleases" alt="Latest Release" /></a>
   <a href="LICENSE"><img src="https://img.shields.io/github/license/notfixingit3/nano-banana-mcpv2" alt="License" /></a>
+  <a href="https://goreportcard.com/report/github.com/notfixingit3/nano-banana-mcpv2"><img src="https://goreportcard.com/badge/github.com/notfixingit3/nano-banana-mcpv2" alt="Go Report Card" /></a>
+  <a href="https://github.com/sponsors/notfixingit3"><img src="https://img.shields.io/github/sponsors/notfixingit3?label=Sponsor&logo=github&color=pink" alt="GitHub Sponsors" /></a>
+  <img src="https://img.shields.io/badge/Go-1.22+-00ADD8?logo=go&logoColor=white" alt="Go 1.22+" />
 </p>
 
 # Nano-Banana MCP Server v2 🍌
@@ -110,7 +113,7 @@ Then add this to your MCP settings file (e.g., Cursor, Claude Desktop, or Claude
 {
   "mcpServers": {
     "nano-banana-mcpv2": {
-      "command": "/Users/house/Documents/gitlab/nano-banana-mcpv2/nano-banana-mcpv2",
+      "command": "/path/to/nano-banana-mcpv2",
       "env": {
         "GEMINI_API_KEY": "your-gemini-api-key-here",
         "GEMINI_IMAGE_MODEL": "gemini-3.1-flash-image"
@@ -121,7 +124,7 @@ Then add this to your MCP settings file (e.g., Cursor, Claude Desktop, or Claude
 ```
 
 ### Method B: Download Pre-compiled Binary
-You can download the pre-compiled binary for your system (macOS ARM64/AMD64, Linux AMD64, or Windows) directly from the [GitHub Releases](https://github.com/notfixingit3/nano-banana-mcpv2/releases) page.
+You can download the pre-compiled binary for your system (macOS ARM64/AMD64, Linux AMD64/ARM64, or Windows) directly from the [GitHub Releases](https://github.com/notfixingit3/nano-banana-mcpv2/releases) page.
 
 Once downloaded, make it executable (`chmod +x nano-banana-mcpv2`) and add it to your path or reference it directly:
 
@@ -189,6 +192,7 @@ Modify a specific existing image file.
 *   **`prompt`** (required): Description of modifications.
 *   **`referenceImages`** (optional): Array of image file paths for style transfer or guidance.
 *   **`model`** (optional): Custom model name to use.
+*   **`aspectRatio`** (optional): Aspect ratio for the output image (`1:1`, `16:9`, `9:16`, `4:3`, `3:4`). Defaults to `1:1`.
 
 ### `continue_editing`
 Refine the last image generated/edited in the active session.
