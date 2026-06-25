@@ -5,6 +5,19 @@ All notable changes to this project will be documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.0.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.1.2] - Unreleased
+
+### Fixed
+- **`edit_image` aspect ratio exposed**: The `aspectRatio` parameter was accepted by the server but missing from the tool's JSON schema, making it invisible to all MCP clients. It is now declared alongside the other `edit_image` parameters.
+- **Double config load in `get_configuration_status`**: `loadConfig()` was being called twice per status check; consolidated to a single call.
+- **Stale setup wizard prompt**: Removed an outdated API key format hint (`AIza...`) that no longer matches current Google AI Studio key formats.
+
+### Changed
+- **Release workflow hardened**: Added `go vet ./...` gate before the build step so vet failures block releases.
+- **Linux ARM64 binary added**: The release workflow now cross-compiles and publishes a `linux/arm64` binary alongside the existing `linux/amd64`, `darwin/arm64`, `darwin/amd64`, and `windows/amd64` targets.
+- **Action versions updated**: Bumped `actions/checkout` from v4 → v7 and `actions/setup-go` from v5 → v6 to target the current Node.js runtime on GitHub-hosted runners.
+- **Removed deprecated `rand.Seed`**: The explicit `rand.Seed(time.Now().UnixNano())` call is unnecessary since Go 1.20 and has been removed.
+
 ## [0.1.1] - 2026-06-08
 
 ### Changed

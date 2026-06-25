@@ -110,7 +110,7 @@ Then add this to your MCP settings file (e.g., Cursor, Claude Desktop, or Claude
 {
   "mcpServers": {
     "nano-banana-mcpv2": {
-      "command": "/Users/house/Documents/gitlab/nano-banana-mcpv2/nano-banana-mcpv2",
+      "command": "/path/to/nano-banana-mcpv2",
       "env": {
         "GEMINI_API_KEY": "your-gemini-api-key-here",
         "GEMINI_IMAGE_MODEL": "gemini-3.1-flash-image"
@@ -121,7 +121,7 @@ Then add this to your MCP settings file (e.g., Cursor, Claude Desktop, or Claude
 ```
 
 ### Method B: Download Pre-compiled Binary
-You can download the pre-compiled binary for your system (macOS ARM64/AMD64, Linux AMD64, or Windows) directly from the [GitHub Releases](https://github.com/notfixingit3/nano-banana-mcpv2/releases) page.
+You can download the pre-compiled binary for your system (macOS ARM64/AMD64, Linux AMD64/ARM64, or Windows) directly from the [GitHub Releases](https://github.com/notfixingit3/nano-banana-mcpv2/releases) page.
 
 Once downloaded, make it executable (`chmod +x nano-banana-mcpv2`) and add it to your path or reference it directly:
 
@@ -189,6 +189,7 @@ Modify a specific existing image file.
 *   **`prompt`** (required): Description of modifications.
 *   **`referenceImages`** (optional): Array of image file paths for style transfer or guidance.
 *   **`model`** (optional): Custom model name to use.
+*   **`aspectRatio`** (optional): Aspect ratio for the output image (`1:1`, `16:9`, `9:16`, `4:3`, `3:4`). Defaults to `1:1`.
 
 ### `continue_editing`
 Refine the last image generated/edited in the active session.
