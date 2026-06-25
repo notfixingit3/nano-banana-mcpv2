@@ -21,7 +21,7 @@ import (
 
 const (
 	ServerName    = "nano-banana-mcpv2"
-	ServerVersion = "0.1.2-beta.0"
+	ServerVersion = "0.1.2-beta.1"
 )
 
 type Config struct {
@@ -75,8 +75,6 @@ func main() {
 		runSetupWizard()
 		return
 	}
-
-	rand.Seed(time.Now().UnixNano())
 
 	// Initialize log file if requested
 	logPath := os.Getenv("NANO_BANANA_LOG_FILE")
@@ -355,6 +353,11 @@ func getToolsList() []Tool {
 						"type":        "string",
 						"description": "Optional model name to use. Defaults to GEMINI_IMAGE_MODEL environment variable or 'gemini-3.1-flash-image'.",
 					},
+					"aspectRatio": map[string]interface{}{
+						"type":        "string",
+						"description": "Optional aspect ratio for the output image. Defaults to '1:1'.",
+						"enum":        []string{"1:1", "16:9", "9:16", "4:3", "3:4"},
+					},
 				},
 				Required: []string{"imagePath", "prompt"},
 			},
@@ -437,11 +440,11 @@ func handleToolCall(id interface{}, toolName string, arguments json.RawMessage) 
 	}
 
 	if toolName == "get_configuration_status" {
-		isConfigured := apiKey != ""
+		_, source := loadConfig()
+		isConfigured := source != "not_configured"
 		statusText := "❌ Gemini API token is not configured"
 		sourceInfo := "\n\n📝 Configuration options:\n1. Environment variable: GEMINI_API_KEY\n2. Use configure_gemini_token tool"
 		if isConfigured {
-			_, source := loadConfig()
 			statusText = "✅ Gemini API token is configured and ready to use"
 			if source == "environment" {
 				sourceInfo = "\n📍 Source: Environment variable (GEMINI_API_KEY)"
@@ -1199,7 +1202,7 @@ func runSetupWizard() {
 
 	var apiKey string
 	for {
-		fmt.Print("Enter your Gemini API key (should start with AIza...): ")
+		fmt.Print("Enter your Gemini API key from Google AI Studio: ")
 		input, err := reader.ReadString('\n')
 		if err != nil {
 			fmt.Printf("❌ Error reading input: %v\n", err)
