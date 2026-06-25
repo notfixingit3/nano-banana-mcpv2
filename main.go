@@ -21,7 +21,7 @@ import (
 
 const (
 	ServerName    = "nano-banana-mcpv2"
-	ServerVersion = "0.1.2-beta.1"
+	ServerVersion = "0.1.2-beta.2"
 )
 
 type Config struct {
